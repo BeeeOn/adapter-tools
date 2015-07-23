@@ -94,7 +94,7 @@ if __name__ == '__main__':
   EEPROM_DATA += "020100fe"
 
   #print "EEPROM data: ",  EEPROM_DATA, "(ID ADA HEX 0x" + coded_adapter_id + ")"
-  eeprom = open("/sys/devices/soc@01c00000/1c2b000.i2c/i2c-1/1-0050/eeprom", 'w')
+  eeprom = open("/sys/devices/platform/soc@01c00000/1c2b000.i2c/i2c-1/1-0050/eeprom", 'w')
 
   hex_data = EEPROM_DATA.decode("hex")
   #print "\tEEPROM_DATA_VERIFICATION: ", EEPROM_DATA_VERIFICATION
