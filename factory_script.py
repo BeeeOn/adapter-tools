@@ -18,7 +18,7 @@ HELP="Usage: python "+sys.argv[0]+" -h|id \n\
 \t -h - optional - prints this help message\n\
 \t id - id of adapter"
 
-serverAddress = "http://ant-2.fit.vutbr.cz:1337"
+serverAddress = "http://ant-2.fit.vutbr.cz:1338"
 
 # return MAC address of eth0
 def getMAC() :
@@ -60,7 +60,7 @@ def saveAdapter(mac, sid):
     "lan_mac": mac
   }
 
-  res = requests.post(serverAddress + "/adapters/create", data = json.dumps(data), headers = headers)
+  res = requests.post(serverAddress + "/api/adapter/create", data = json.dumps(data), headers = headers)
 
   return res.json().adapter_id # return adapter id given by server
 
