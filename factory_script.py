@@ -75,8 +75,8 @@ if __name__ == '__main__':
   SID = getSID()
   adapter = saveAdapter(MAC, SID)
 
-  ID = adapter.adapter_id
-  cert = base64.b64decode(adapter.cert)
+  ID = adapter["adapter_id"]
+  cert = base64.b64decode(adapter["cert"])
 
   with open("/etc/openvpn/" + ID + ".crt", "w") as cert_file:
     cert_file.write("%s", cert)
