@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, os
+import sys, os, base64
 
 PKG=os.popen("opkg list-installed | grep \"python-requests\" | wc -l")
 if PKG == 0 :
@@ -62,7 +62,7 @@ def saveAdapter(mac, sid):
 
   res = requests.post(serverAddress + "/api/adapter/create", data = json.dumps(data), headers = headers)
 
-  return res.json().adapter_id # return adapter id given by server
+  return res.json() # return adapter json
 
 if __name__ == '__main__':
   if len(sys.argv) > 1 and sys.argv[1] == "-h"  :
@@ -73,7 +73,13 @@ if __name__ == '__main__':
   #ID = '1005612700110100'
   MAC = getMAC()
   SID = getSID()
-  ID = saveAdapter(MAC, SID)
+  adapter = saveAdapter(MAC, SID)
+
+  ID = adapter.adapter_id
+  cert = base64.b64decode(adapter.cert)
+
+  with open("/etc/openvpn/" + ID + ".crt", "w") as cert_file:
+    cert_file.write("%s", cert)
 
   print "\tID adapteru je:", ID
   print "\tMAC adresa je: ", MAC
