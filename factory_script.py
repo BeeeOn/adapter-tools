@@ -78,7 +78,7 @@ if __name__ == '__main__':
   ID = adapter["adapter_id"]
   cert = base64.b64decode(adapter["cert"])
 
-  with open("/etc/openvpn/" + ID + ".crt", "w") as cert_file:
+  with open("/etc/openvpn/client.crt", "w") as cert_file:
     cert_file.write(cert)
 
   print "\tID adapteru je:", ID
