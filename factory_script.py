@@ -77,9 +77,13 @@ if __name__ == '__main__':
 
   ID = adapter["adapter_id"]
   cert = base64.b64decode(adapter["cert"])
+  key = base64.b64decode(adapter["key"])
 
   with open("/etc/openvpn/client.crt", "w") as cert_file:
     cert_file.write(cert)
+
+  with open("/etc/openvpn/client.key", "w") as key_file:
+    key_file.write(key)
 
   print "\tID adapteru je:", ID
   print "\tMAC adresa je: ", MAC
