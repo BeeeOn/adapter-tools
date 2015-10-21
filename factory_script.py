@@ -70,7 +70,7 @@ if __name__ == '__main__':
 	ID = adapter["adapter_id"]
 	cert = base64.b64decode(adapter["cert"])
 	key = base64.b64decode(adapter["key"])
-	pan_id = adapter["pan_id"]  # ["3E", "29". "C3", "39"]
+	pan_id = adapter["pan_id"]  # [3E, 29. C3, 39]
 
 	with open("/etc/openvpn/client.crt", "w") as cert_file:
 		cert_file.write(cert)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
 		key_file.write(key)
 
 	with open("/etc/beeeon/fitprotocold.ini") as conf_file:
-		edids = "edid0=0x{0}\nedid0=0x{1}\nedid0=0x{2}\nedid0=0x{3}".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
+		edids = "edid0=0x{0:02x}\nedid0=0x{1:02x}\nedid0=0x{2:02x}\nedid0=0x{3:02x}".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
 		conf_file.write("[net_config]\nchannel=28\n"+edids)
 
 	print "\tID adapteru je:", ID
