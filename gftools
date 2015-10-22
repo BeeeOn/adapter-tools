@@ -1,0 +1,145 @@
+#!/bin/sh
+#
+# Contains a set of tools for manipulating the SRAM bootcounter
+# Author: Matej Postolka <xposto02@stud.fit.vutbr.cz>
+# Last modified: 30.6.2015
+#
+
+SRAM='/sys/devices/platform/soc@01c00000/1c2b400.i2c/i2c-2/2-006f/nvram'
+TMPFILE='/tmp/sram_dump'
+SRAM_SIZE='64'
+HELP="
+SRAM script quick help - refer to README for more info
+
+Syntax: ./sram-tools.sh OPTION [VALUE]
+
+	-c Get current value of boot counter
+	
+	-R Reset boot counter to zero
+	
+	-f Get value of initialization flag
+	
+	-F Clear initialization flag
+	
+	-m Get current value of the maximum boot parameter
+	
+	-M Set maximum boot parameter to [VALUE] (enter value in decimal)
+	
+	-o Get current value of the override flag
+	
+	-O Set override flag to:
+		0 - Normal mode
+		1 - Force regular boot
+		2 - Force recovery boot
+"
+COUNTER='0'
+FLAG='0'
+MAXBOOT='0'
+OVERRIDE='0'
+
+if [ ! -w "$SRAM" ]; then
+       echo "FATAL ERROR - cannot access device" >&2
+       exit 1
+fi
+
+loadVars() {
+	cat $SRAM > $TMPFILE
+
+	i=1
+	while [ $i -lt $SRAM_SIZE ]; do
+		HEXVAL=`hexdump $TMPFILE -v -e '"0x" 1/4 "%02X"' -n 1 -s $i`
+		
+		if [ "$HEXVAL" = "0xff" ]; then
+			break
+		fi
+		
+		SHIFT=`expr $i + 1`
+		SIZE=`hexdump $TMPFILE -v -e '"%01d"' -n 1 -s $SHIFT`
+		SHIFT=`expr $SHIFT + 1`
+		VAL=`hexdump $TMPFILE -v -e '"0x" 1/4 "%02X"' -n $SIZE -s $SHIFT`
+		
+		case "$HEXVAL" in
+			"0x01")
+				COUNTER=$VAL
+				COUNTER_S=$SIZE
+				COUNTER_M=$SHIFT
+				;;
+			"0x02")
+				FLAG=$VAL
+				FLAG_S=$SIZE
+				FLAG_M=$SHIFT
+				;;
+			"0x03")
+				MAXBOOT=$VAL
+				MAXBOOT_S=$SIZE
+				MAXBOOT_M=$SHIFT
+				;;
+			"0x04")
+				OVERRIDE=$VAL
+				OVERRIDE_S=$SIZE
+				OVERRIDE_M=$SHIFT
+				;;
+		esac
+		
+		i=`expr $i + 2 + $SIZE`
+	done
+	
+}
+
+checkOF() {
+	
+	case "$OVERRIDE_N" in
+		"0") ;;
+		"1") ;;
+		"2") ;;
+		*) echo "Invalid override flag value"
+		   cleanup
+		   exit 1
+		   ;;	   
+	esac
+}
+
+cleanup() {
+	
+	rm -rf $TMPFILE
+}
+
+loadVars
+
+case "$1" in
+  "-c")
+   	echo "$COUNTER"
+   	;;
+  "-R")
+   	dd if=/dev/zero of=$SRAM bs=1 count=$COUNTER_S seek=$COUNTER_M &>/dev/null
+   	;;
+  "-f")
+  	echo "$FLAG"
+  	;;
+  "-F")
+  	dd if=/dev/zero of=$SRAM bs=1 count=$FLAG_S seek=$FLAG_M &>/dev/null
+  	;;
+  "-m")
+  	echo "$MAXBOOT"
+  	;;
+  "-M")
+  	MAXBOOT_N=`printf "%x" "$2"`
+  	echo -n -e "\x$MAXBOOT_N" | dd of=$SRAM bs=1 count=$MAXBOOT_S seek=$MAXBOOT_M &>/dev/null
+  	;;
+  "-o")
+  	echo "$OVERRIDE"
+  	;;
+  "-O")
+  	OVERRIDE_N=`printf "%x" "$2"`
+  	checkOF
+  	echo -n -e "\x$OVERRIDE_N" | dd of=$SRAM bs=1 count=$OVERRIDE_S seek=$OVERRIDE_M &>/dev/null
+  	;;
+  *)
+  	echo "$HELP"
+  	cleanup
+  	exit 1
+  	;;
+esac
+
+cleanup
+exit 0
