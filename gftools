@@ -101,7 +101,7 @@ checkOF() {
 
 cleanup() {
 	
-	rm -rf $TMPFILE
+	rm -f $TMPFILE
 }
 
 loadVars
