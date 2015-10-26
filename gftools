@@ -2,16 +2,14 @@
 #
 # Contains a set of tools for manipulating the SRAM bootcounter
 # Author: Matej Postolka <xposto02@stud.fit.vutbr.cz>
-# Last modified: 22.10.2015
+# Last modified: 2015-10-26
 #
 
 SRAM='/sys/devices/platform/soc@01c00000/1c2b400.i2c/i2c-2/2-006f/nvram'
 TMPFILE='/tmp/sram_dump'
 SRAM_SIZE='64'
 HELP="
-SRAM script quick help - refer to README for more info
-
-Syntax: ./gftool OPTION [VALUE]
+Syntax: gftools OPTION [VALUE]
 
 	-c Get current value of boot counter
 	
@@ -31,6 +29,8 @@ Syntax: ./gftool OPTION [VALUE]
 		0 - Normal mode
 		1 - Force regular boot
 		2 - Force recovery boot
+	
+Refer to wiki for more info
 "
 COUNTER='0'
 FLAG='0'
