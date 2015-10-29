@@ -23,12 +23,14 @@ HELP="Usage: python "+sys.argv[0]+" -h|id \n\
 
 serverAddress = "http://ant-2.fit.vutbr.cz:1338"
 
+
 # return MAC address of eth0
 def getMAC():
 	MAC=os.popen("ifconfig -a | grep \"eth[0-9]*\" | grep -o \"HWaddr [0-9A-F:]*\" | grep -o \"[0-9A-F:]*\"").read()
 	MAC = MAC.replace('\n', '')
 
 	return MAC
+
 
 # return security ID of CPU
 def getSID():
@@ -45,11 +47,11 @@ def getSID():
 
 	return SID
 
+
 # saves adapter specified by id, mac and secure_id
-def saveAdapter(mac, sid):
+def save_adapter(mac, sid):
 	headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 	data = {
-		#"adapter_id": id,
 		"secure_id": sid,
 		"lan_mac": mac
 	}
@@ -65,7 +67,7 @@ if __name__ == '__main__':
 
 	MAC = getMAC()
 	SID = getSID()
-	adapter = saveAdapter(MAC, SID)
+	adapter = save_adapter(MAC, SID)
 
 	ID = adapter["adapter_id"]
 	cert = base64.b64decode(adapter["cert"])
@@ -78,7 +80,7 @@ if __name__ == '__main__':
 	with open("/etc/openvpn/client.key", "w") as key_file:
 		key_file.write(key)
 
-	with open("/etc/beeeon/fitprotocold.ini") as conf_file:
+	with open("/etc/beeeon/fitprotocold.ini", "w") as conf_file:
 		edids = "edid0=0x{0:02x}\nedid0=0x{1:02x}\nedid0=0x{2:02x}\nedid0=0x{3:02x}".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
 		conf_file.write("[net_config]\nchannel=28\n"+edids)
 
