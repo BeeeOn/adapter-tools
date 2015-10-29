@@ -81,7 +81,7 @@ if __name__ == '__main__':
 		key_file.write(key)
 
 	with open("/etc/beeeon/fitprotocold.ini", "w") as conf_file:
-		edids = "edid0=0x{0:02x}\nedid0=0x{1:02x}\nedid0=0x{2:02x}\nedid0=0x{3:02x}".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
+		edids = "edid0=0x{0}\nedid0=0x{1}\nedid0=0x{2}\nedid0=0x{3}".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
 		conf_file.write("[net_config]\nchannel=28\n"+edids)
 
 	print "\tID adapteru je:", ID
