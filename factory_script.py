@@ -3,17 +3,6 @@
 import sys
 import os
 import base64
-
-PKG=os.popen("opkg list-installed | grep \"python-requests\" | wc -l")
-if PKG == 0:
-	print "Updating opkg repository..."
-	os.system("opkg update > /dev/null")
-	print "Installing packages for python"
-	os.system("opkg install python-requests > /dev/null")
-else:
-	print "Required packages are already installed..."
-
-
 import requests
 import json
 
