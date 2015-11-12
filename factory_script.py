@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
 	with open("/etc/beeeon/fitprotocold.ini", "w") as conf_file:
 		edids = "edid0=0x{0}\nedid1=0x{1}\nedid2=0x{2}\nedid3=0x{3}\n".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
-		conf_file.write("[net_config]\nchannel=28\n"+edids)
+		conf_file.write("[net_config]\nchannel=28\n"+edids+"device_table_path=/var/lib/beeeon/fitprotocold.devices\n")
 
 	print "\tID adapteru je:", ID
 	print "\tMAC adresa je: ", MAC
