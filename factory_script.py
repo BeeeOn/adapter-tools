@@ -105,4 +105,7 @@ if __name__ == '__main__':
 	eeprom.write(hex_data)
 	eeprom.close()
 
+	print "Povoluji spusteni AdaApp"
+	os.system("systemctl enable beeeon-adaapp")
+
 	print "Hotovo, finish!"
