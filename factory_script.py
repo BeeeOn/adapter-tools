@@ -5,6 +5,7 @@ import os
 import base64
 import requests
 import json
+import subprocess
 
 HELP="Usage: python "+sys.argv[0]+" -h|id \n\
 \t -h - optional - prints this help message\n\
@@ -62,17 +63,32 @@ if __name__ == '__main__':
 	cert = base64.b64decode(adapter["cert"])
 	key = base64.b64decode(adapter["key"])
 	pan_id = adapter["pan_id"]  # [3E, 29. C3, 39]
-
-	with open("/etc/openvpn/client.crt", "w") as cert_file:
-		cert_file.write(cert)
-
-	with open("/etc/openvpn/client.key", "w") as key_file:
-		key_file.write(key)
-
-	with open("/etc/beeeon/fitprotocold.ini", "w") as conf_file:
-		edids = "edid0=0x{0}\nedid1=0x{1}\nedid2=0x{2}\nedid3=0x{3}\n".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
-		conf_file.write("[net_config]\nchannel=28\n"+edids+"device_table_path=/var/lib/beeeon/fitprotocold.devices\n")
-
+	
+	cert_file_path = "/etc/openvpn/client.crt"
+	key_file_path = "/etc/openvpn/client.key"
+	conf_file_path = "/etc/beeeon/fitprotocold.ini"
+	
+	recovery_fs = "/dev/mmcblk0p3"
+	recovery_mnt_path = "/mnt"
+	
+	subprocess.call(["mount %s %s" % (recovery_fs, recovery_mnt_path)], shell=True);
+	
+	for path in [cert_file_path, recovery_mnt_path+cert_file_path]:
+		with open(path, "w") as cert_file:
+			cert_file.write(cert)
+	
+	for path in [key_file_path, recovery_mnt_path+key_file_path]:
+		with open(path, "w") as key_file:
+			key_file.write(key)
+	
+	edids = "edid0=0x{0}\nedid1=0x{1}\nedid2=0x{2}\nedid3=0x{3}\n".format(pan_id[0], pan_id[1], pan_id[2], pan_id[3])
+	
+	for path in [conf_file_path, recovery_mnt_path+conf_file_path]:
+		with open(path, "w") as conf_file:
+			conf_file.write("[net_config]\nchannel=28\n"+edids+"device_table_path=/var/lib/beeeon/fitprotocold.devices\n")
+	
+	subprocess.call(["umount %s" % (recovery_mnt_path)], shell=True);
+	
 	print "\tID adapteru je:", ID
 	print "\tMAC adresa je: ", MAC
 	print "\tSID cislo je:  ", SID
