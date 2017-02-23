@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import logging
 import sys
 import os
 import base64
@@ -13,14 +14,25 @@ HELP="Usage: python "+sys.argv[0]+" -h|id \n\
 
 serverAddress = "http://ant-2.fit.vutbr.cz:1338"
 
+def getMAC(iface):
+	"""
+	Retrieves MAC address of given interface.
 
-# return MAC address of eth0
-def getMAC():
-	MAC=os.popen("ifconfig -a | grep \"eth[0-9]*\" | grep -o \"HWaddr [0-9A-F:]*\" | grep -o \"[0-9A-F:]*\"").read()
-	MAC = MAC.replace('\n', '')
+	:param iface: Name of the interface whose MAC address we want.
 
-	return MAC
+	:return: String with MAC address.
+	:rtype:  String
 
+	:raises IOError: if MAC address for given :iface cannot be retrieved
+	"""
+	mac = ""
+
+	with open('/sys/class/net/'+iface+'/address') as macFile:
+		mac = macFile.readline().strip()
+	
+	mac = mac.upper() # compatibility with old format
+
+	return mac
 
 # return security ID of CPU
 def getSID():
@@ -51,11 +63,12 @@ def save_adapter(mac, sid):
 	return res.json() # return adapter json
 
 if __name__ == '__main__':
+	logging.basicConfig(format='%(levelname)s:\t%(message)s')
 	if len(sys.argv) > 1 and sys.argv[1] == "-h":
 		print HELP
 		sys.exit(0)
 
-	MAC = getMAC()
+	MAC = getMAC("eth0")
 	SID = getSID()
 	adapter = save_adapter(MAC, SID)
 
