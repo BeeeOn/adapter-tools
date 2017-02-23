@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-import logging
-import sys
-import os
 import base64
-import requests
 import json
+import logging
+import mmap
+import os
+import requests
+import struct
 import subprocess
+import sys
 
 HELP="Usage: python "+sys.argv[0]+" -h|id \n\
 \t -h - optional - prints this help message\n\
@@ -34,21 +36,33 @@ def getMAC(iface):
 
 	return mac
 
-# return security ID of CPU
 def getSID():
-	SID_1=os.popen("devmem2 0x01c23800 | grep \"Read*\" | grep -o \":.*\" | grep -o \"0x[0-9A-Fa-f]*\"").read()
-	SID_2=os.popen("devmem2 0x01c23804 | grep \"Read*\" | grep -o \":.*\" | grep -o \"0x[0-9A-Fa-f]*\"").read()
-	SID_3=os.popen("devmem2 0x01c23808 | grep \"Read*\" | grep -o \":.*\" | grep -o \"0x[0-9A-Fa-f]*\"").read()
-	SID_4=os.popen("devmem2 0x01c2380c | grep \"Read*\" | grep -o \":.*\" | grep -o \"0x[0-9A-Fa-f]*\"").read()
+	"""
+	Retrieves security ID (SID) of CPU.
 
-	SID_1 = SID_1.replace('\n', '')
-	SID_2 = SID_2.replace('\n', '')
-	SID_3 = SID_3.replace('\n', '')
-	SID_4 = SID_4.replace('\n', '')
-	SID=SID_1[2:] + SID_2[2:] + SID_3[2:] + SID_4[2:]
+	:return: String with 16 bytes of SID coded as hexa-numbers.
+	:rtype: String
+	"""
+	logging.debug('Getting CPU security ID...')
 
-	return SID
+	SID_ADDR = 0x01c23800
+	SID_LEN = 16
+	WORD_LEN = 4
+	MAP_MASK = mmap.PAGESIZE - 1
 
+	with open("/dev/mem", "rb") as mem:
+		mem_sid = mmap.mmap(mem.fileno(), mmap.PAGESIZE, mmap.MAP_SHARED, mmap.PROT_READ, offset=SID_ADDR & ~MAP_MASK)
+		mem_sid.seek(SID_ADDR & MAP_MASK)
+
+		sid = ""
+		for i in range(0, SID_LEN / WORD_LEN):
+			sid_word = mem_sid.read(WORD_LEN)
+			sid_int = struct.unpack("<L", sid_word) # Because of Little-Endians
+			sid += '{0:08X}'.format(sid_int[0])
+
+		mem_sid.close()
+
+	return sid
 
 # saves adapter specified by id, mac and secure_id
 def save_adapter(mac, sid):
