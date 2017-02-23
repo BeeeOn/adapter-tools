@@ -1,4 +1,13 @@
 #!/usr/bin/python
+"""
+Factory initialization script for BeeeOn gateways.
+
+This script serves for initial setting of a gateway, registering it to a
+BeeeOn server and generating cryptographic keys for secure VPN connection
+between a gateway and managing server.
+
+todo:: Remove all references to adapter and adapter ID (aid).
+"""
 
 import argparse
 import base64
@@ -11,6 +20,7 @@ import struct
 import subprocess
 import sys
 
+#: BeeeOn server that should manage this gateway
 serverAddress = "http://ant-2.fit.vutbr.cz:1338"
 
 def getMAC(iface):
@@ -42,10 +52,10 @@ def getSID():
 	"""
 	logging.debug('Getting CPU security ID...')
 
-	SID_ADDR = 0x01c23800
-	SID_LEN = 16
-	WORD_LEN = 4
-	MAP_MASK = mmap.PAGESIZE - 1
+	SID_ADDR = 0x01c23800 #: address of secure ID in memory
+	SID_LEN = 16 #: length od secure ID in bytes
+	WORD_LEN = 4 #: number of bytes in one word for Endian fixing
+	MAP_MASK = mmap.PAGESIZE - 1 #: mask used for solving issues with memory pages
 
 	with open("/dev/mem", "rb") as mem:
 		mem_sid = mmap.mmap(mem.fileno(), mmap.PAGESIZE, mmap.MAP_SHARED, mmap.PROT_READ, offset=SID_ADDR & ~MAP_MASK)
@@ -55,7 +65,7 @@ def getSID():
 		for i in range(0, SID_LEN / WORD_LEN):
 			sid_word = mem_sid.read(WORD_LEN)
 			sid_int = struct.unpack("<L", sid_word) # Because of Little-Endians
-			sid += '{0:08X}'.format(sid_int[0])
+			sid += '{0:0{1}X}'.format(sid_int[0], WORD_LEN*2) # two hex digits per byte
 
 		mem_sid.close()
 
@@ -80,9 +90,10 @@ def storeToEEPROM(gw_id):
 	:param gw_id: ID of this gateway.
 	"""
 	
+	#: path to EEPROM device
 	EEPROM_PATH = "/sys/devices/platform/soc@01c00000/1c2b000.i2c/i2c-1/1-0050/eeprom"
 	EEPROM_MAGIC_NUMBER = "ad"
-	EEPROM_TABLE_VERSION = "01"
+	EEPROM_TABLE_VERSION = "01" #: version of eeprom data coding
 	EEPROM_TYPE_GW_ID = "01"
 	EEPROM_TYPE_WARRANTY = "02"
 	EEPROM_WARRANTY_LEN = "01"
@@ -115,7 +126,7 @@ def storeToEEPROM(gw_id):
 		eeprom.write(data.decode("hex"))
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser("python "+sys.argv[0], description='Initialization factory script for BeeeOn gateways.')
+	parser = argparse.ArgumentParser("python "+sys.argv[0], description='Factory initialization script for BeeeOn gateways.')
 	parser.add_argument('--debug', action='store_true', help='print debugging messages')
 	args = parser.parse_args()
 
