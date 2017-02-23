@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import argparse
 import base64
 import json
 import logging
@@ -9,10 +10,6 @@ import requests
 import struct
 import subprocess
 import sys
-
-HELP="Usage: python "+sys.argv[0]+" -h|id \n\
-\t -h - optional - prints this help message\n\
-\t id - id of adapter"
 
 serverAddress = "http://ant-2.fit.vutbr.cz:1338"
 
@@ -77,10 +74,14 @@ def save_adapter(mac, sid):
 	return res.json() # return adapter json
 
 if __name__ == '__main__':
-	logging.basicConfig(format='%(levelname)s:\t%(message)s')
-	if len(sys.argv) > 1 and sys.argv[1] == "-h":
-		print HELP
-		sys.exit(0)
+	parser = argparse.ArgumentParser("python "+sys.argv[0], description='Initialization factory script for BeeeOn gateways.')
+	parser.add_argument('--debug', action='store_true', help='print debugging messages')
+	args = parser.parse_args()
+
+	log_lvl = logging.ERROR
+	if args.debug:
+		log_lvl = logging.DEBUG
+	logging.basicConfig(format='%(levelname)s:\t%(message)s', level=log_lvl)
 
 	MAC = getMAC("eth0")
 	SID = getSID()
