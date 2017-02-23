@@ -73,6 +73,47 @@ def save_adapter(mac, sid):
 
 	return res.json() # return adapter json
 
+def storeToEEPROM(gw_id):
+	"""
+	Stores gateway ID and warranty byte to EEPROM.
+
+	:param gw_id: ID of this gateway.
+	"""
+	
+	EEPROM_PATH = "/sys/devices/platform/soc@01c00000/1c2b000.i2c/i2c-1/1-0050/eeprom"
+	EEPROM_MAGIC_NUMBER = "ad"
+	EEPROM_TABLE_VERSION = "01"
+	EEPROM_TYPE_GW_ID = "01"
+	EEPROM_TYPE_WARRANTY = "02"
+	EEPROM_WARRANTY_LEN = "01"
+	EEPROM_WARRANTY = "00"
+	EEPROM_END_OF_DATA = "ff"
+	
+	CODED_GW_ID_MIN_LEN = 14 # Minimal length of CODED_GW_ID in hexadecimal characters
+
+	enc_gw_id = "{0:0{1}x}".format(int(gw_id), CODED_GW_ID_MIN_LEN) # encode gw_id as hex chars
+
+	enc_gw_id_size = len(enc_gw_id)/2 # 2 hex digits per byte
+	enc_gw_id_size = enc_gw_id_size if (len(enc_gw_id)%2 == 0) else enc_gw_id_size+1 # round to bytes
+
+	data =  EEPROM_MAGIC_NUMBER
+	data += EEPROM_TABLE_VERSION
+
+	data += EEPROM_TYPE_GW_ID
+	data += format(enc_gw_id_size, '02x')
+	data += enc_gw_id
+	
+	data += EEPROM_TYPE_WARRANTY
+	data += EEPROM_WARRANTY_LEN
+	data += EEPROM_WARRANTY
+
+	data += EEPROM_END_OF_DATA
+	logging.debug("EEPROM data: " + data)
+
+	logging.info("Writing gateway ID to EEPROM.")
+	with open(EEPROM_PATH, 'w') as eeprom:
+		eeprom.write(data.decode("hex"))
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser("python "+sys.argv[0], description='Initialization factory script for BeeeOn gateways.')
 	parser.add_argument('--debug', action='store_true', help='print debugging messages')
@@ -122,32 +163,7 @@ if __name__ == '__main__':
 	print "\tSID cislo je:  ", SID
 	print "\tPAN id je:     ", pan_id
 
-	EEPROM_DATA_VERIFICATION = "ad"
-	EEPROM_DATA_VERSION = "01"
-
-	EEPROM_DATA = EEPROM_DATA_VERIFICATION + EEPROM_DATA_VERSION
-
-	coded_adapter_id = "{0:#0{1}x}".format(int(ID), 16)[2:]
-
-	length_adapter_id = len(coded_adapter_id)/2
-	if ((len(coded_adapter_id)%2)  == 1) :
-		length_adapter_id += 1
-
-	EEPROM_DATA += "01" + str(format(length_adapter_id, '02x')) + coded_adapter_id
-	EEPROM_DATA += "020100fe"
-
-	#print "EEPROM data: ",  EEPROM_DATA, "(ID ADA HEX 0x" + coded_adapter_id + ")"
-	eeprom = open("/sys/devices/platform/soc@01c00000/1c2b000.i2c/i2c-1/1-0050/eeprom", 'w')
-
-	hex_data = EEPROM_DATA.decode("hex")
-	#print "\tEEPROM_DATA_VERIFICATION: ", EEPROM_DATA_VERIFICATION
-	#print "\tEEPROM_DATA_VERSION     : ", EEPROM_DATA_VERSION
-	#print "\tEEPROM_DATA - ADAPTER_ID: ", (ID + " (0x" + coded_adapter_id + ")")
-	#print "\tEEPROM_DATA TOGETHER    : ", EEPROM_DATA
-	print "Zapisuji AdapterID + dalsi atributy do EEPROM pameti:"
-	print "\tEEPROM data: ",  EEPROM_DATA
-	eeprom.write(hex_data)
-	eeprom.close()
+	storeToEEPROM(ID)
 
 	print "Povoluji spusteni AdaApp"
 	os.system("systemctl enable beeeon-adaapp")
