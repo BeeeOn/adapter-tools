@@ -24,6 +24,18 @@ import sys
 
 #: BeeeOn server that should manage this gateway
 SERVER_ADDRESS = "http://ant-2.fit.vutbr.cz:1338"
+ 
+#: Path to Fitprotocold configuration file
+FITPROTOD_CONF = "/etc/beeeon/fitprotocold.ini"
+
+#: Path to devices table for Fitprotocold
+DEVICE_TBL_PATH = "/var/lib/beeeon/fitprotocold.devices"
+
+#: Path to recovery device that should be mounted
+RECOVERY_FS = "/dev/mmcblk0p3"
+
+#: Path to mounted recovery device
+RECOVERY_PATH = "/mnt"
 
 def getMAC(iface):
 	"""
@@ -101,6 +113,31 @@ def register(address, mac, sid):
 
 	dres = res.json()
 	return (dres['gw_id'], dres['pan_id'])
+
+def genFitprotodConf(pan_id, device_tbl_path):
+	"""
+	Generates fitprotocold configuration.
+
+	:param pan_id: PAN ID of this adapter.
+	:param device_table_path: Path to file with devices table.
+
+	:return: Fitprotocold configuration
+	:rtype: String
+	"""
+
+	edids =  "edid0=0x" + str(pan_id[0]) + "\n"
+	edids += "edid1=0x" + str(pan_id[1]) + "\n"
+	edids += "edid2=0x" + str(pan_id[2]) + "\n"
+	edids += "edid3=0x" + str(pan_id[3]) + "\n"
+
+	conf =  "[net_config]\n"
+	conf += "channel=28\n"
+	conf += edids
+	conf += "device_table_path=" + device_tbl_path + "\n"
+
+	logging.debug("Fitprotocold config:\n" + conf)
+
+	return conf
 
 def storeToEEPROM(gw_id):
 	"""
@@ -183,13 +220,43 @@ if __name__ == '__main__':
 	except requests.exceptions.RequestException as e:
 		logging.critical("Registering the gateway failed with: " + str(e))
 		sys.exit(1)
-	
+
+	bckp = False
+	try:
+		subprocess.check_output(["mount", RECOVERY_FS, RECOVERY_PATH], stderr=subprocess.STDOUT)
+		bckp = True
+	except subprocess.CalledProcessError as e:
+		err = True
+		logging.error("Could not mount recovery partition, initialization will NOT be backed up!\nError: " + str(e))
+
+	fitprotod_conf = genFitprotodConf(pan_id, DEVICE_TBL_PATH)
+	try:
+		with open(FITPROTOD_CONF, 'w') as fitprotod_conf_file:
+			fitprotod_conf_file.write(fitprotod_conf)
+	except IOError as e:
+		logging.critical("Could not save fitprotocold configuration. " + str(e))
+		sys.exit(1)
+	if bckp:
+		try:
+			with open(RECOVERY_PATH+FITPROTOD_CONF, 'w') as fitprotod_conf_bckp:
+				fitprotod_conf_bckp.write(fitprotod_conf)
+		except IOError as e:
+			err = True
+			logging.error("Could not backup fitprotocold configuration. " + str(e))
+
 	try:
 		storeToEEPROM(gw_id)
 		print("Gateway ID stored to EEPROM.")
 	except IOError as e:
 		err = True
 		logging.error("Storing gateway ID to EEPROM failed with: " + str(e))
+	
+	if bckp:
+		try:
+			subprocess.check_call(["umount", RECOVERY_PATH])
+		except subprocess.CalledProcessError:
+			err = True
+			logging.error("Could not unmount "+RECOVERY_PATH+", please do it manually.")
 
 	if err:
 		print("Initialization finished with some errors.")
