@@ -37,6 +37,12 @@ RECOVERY_FS = "/dev/mmcblk0p3"
 #: Path to mounted recovery device
 RECOVERY_PATH = "/mnt"
 
+#: Path where private key should be stored
+KEY_PATH = "/etc/openvpn/client.key"
+
+#: X.509 certificate subject
+CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=IoT/emailAddress=ca@iot.example.com"
+
 def getMAC(iface):
 	"""
 	Retrieves MAC address of given interface.
@@ -183,6 +189,62 @@ def storeToEEPROM(gw_id):
 	with open(EEPROM_PATH, 'w') as eeprom:
 		eeprom.write(data.decode('hex'))
 
+def genKeys():
+	"""
+	Generates cryptography keys.
+
+	:return: String with generated keys encoded as PEM.
+	:rtype: String
+
+	:raises RuntimeError: when error occures while generating keys
+
+	todo:: Consult feasibility of rewriting with PyOpenSSL library.
+	"""
+
+	command = [ "openssl", "genpkey",
+	            "-algorithm", "RSA",
+	            "-pkeyopt", "rsa_keygen_bits:2048"]
+
+	logging.debug('Generating crypto keys with "' + ' '.join(command) + '"')
+
+	proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	stdout, stderr = proc.communicate()
+
+	if proc.returncode != 0:
+		raise RuntimeError(stderr)
+
+	return stdout
+
+def genCSR(pkey_path, gw_id):
+	"""
+	Generates certificate signing request from private key.
+
+	:param pkey_path: path to private key
+	:param gw_id: ID of this gateway.
+
+	:return: PEM encoded certificate signing request.
+	:rtype: String
+	
+	:raises RuntimeError: when error occures while generating CSR
+
+	todo:: Consult feasibility of rewriting with PyOpenSSL library.
+	"""
+
+	command = [ "openssl", "req",
+	            "-new", "-utf8",
+	            "-key", pkey_path,
+	            "-subj", CERT_SUBJECT+"/CN=AID="+gw_id+";/" ]
+
+	logging.debug('Generating CSR with "' + ' '.join(command) + '"')
+	
+	proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	stdout, stderr = proc.communicate()
+
+	if proc.returncode != 0:
+		raise RuntimeError(stderr)
+
+	return stdout
+
 if __name__ == '__main__':
 	err = False
 
@@ -250,7 +312,33 @@ if __name__ == '__main__':
 	except IOError as e:
 		err = True
 		logging.error("Storing gateway ID to EEPROM failed with: " + str(e))
-	
+
+	try:
+		keys = genKeys()
+		with open(KEY_PATH, "w") as keyfile:
+			keyfile.write(keys)
+		print("2048b RSA keys generated.")
+	except RuntimeError as e:
+		logging.critical("Key generation failed with: " + str(e))
+		sys.exit(1)
+	except IOError as e:
+		logging.critical("Could not save private key: " + str(e))
+		sys.exit(1)
+	if bckp:
+		try:
+			with open(RECOVERY_PATH+KEY_PATH, 'w') as keyfile_bckp:
+				keyfile_bckp.write(keys)
+		except IOError as e:
+			err = True
+			logging.error('Could not backup private key: ' + str(e))
+
+	try:
+		csr = genCSR(KEY_PATH, gw_id)
+		print(csr)
+	except RuntimeError as e:
+		logging.critical("CSR generation failed with: " + str(e))
+		sys.exit(1)
+
 	if bckp:
 		try:
 			subprocess.check_call(["umount", RECOVERY_PATH])
