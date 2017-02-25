@@ -16,7 +16,6 @@ import base64
 import json
 import logging
 import mmap
-import os
 import requests
 import struct
 import subprocess
@@ -385,8 +384,12 @@ if __name__ == '__main__':
 		logging.critical("Could not save certificate: " + str(e))
 		sys.exit(1)
 
-	print("Povoluji spusteni AdaApp")
-	os.system("systemctl enable beeeon-adaapp")
+	try:
+		subprocess.check_output(["systemctl", "enable", "beeeon-adaapp"], stderr=subprocess.STDOUT)
+		print("AdaApp enabled")
+	except CalledProcessError as e:
+		err = True
+		logging.error("Enabling AdaApp failed with: " + str(e))
 
 	if bckp:
 		try:
