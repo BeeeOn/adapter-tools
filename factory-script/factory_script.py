@@ -40,6 +40,9 @@ RECOVERY_PATH = "/mnt"
 #: Path where private key should be stored
 KEY_PATH = "/etc/openvpn/client.key"
 
+#: Path where the signed certificate should be stored
+CERT_PATH = "/etc/openvpn/client.crt"
+
 #: X.509 certificate subject
 CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=IoT/emailAddress=ca@iot.example.com"
 
@@ -245,6 +248,35 @@ def genCSR(pkey_path, gw_id):
 
 	return stdout
 
+def signCSR(address, gw_id, csr):
+	"""
+	Sends :csr to server at :address to sign it and returns signed certificate.
+
+	:param address: Address of BeeeOn server to which this gateway should register in format "http[s]://hostname[:port]".
+	:param csr: PEM encoded CSR.
+
+	:return: PEM encoded certificate.
+	:rtype: String
+	
+	:raises requests.exceptions.RequestException: if sign request failed
+	"""
+	logging.debug("Sending sign request to server " + address + ".")
+
+	headers = {"Content-type": "application/json", "Accept": "application/json"}
+	data = {'id': gw_id, 'csr': csr}
+
+	res = requests.post(address + "/api/gateway/cert/create", data = json.dumps(data), headers = headers)
+	logging.debug("Server response: " + str(res))
+
+	res.raise_for_status() # raise requests.exceptions.HTTPError if 4xx or 5xx status code
+
+	try:
+		cert = res.json()['cert']
+	except ValueError:
+		raise requests.exceptions.RequestException("Server replied: " + str(res.status_code) + ": " + res.text())
+
+	return cert
+
 if __name__ == '__main__':
 	err = False
 
@@ -315,7 +347,7 @@ if __name__ == '__main__':
 
 	try:
 		keys = genKeys()
-		with open(KEY_PATH, "w") as keyfile:
+		with open(KEY_PATH, 'w') as keyfile:
 			keyfile.write(keys)
 		print("2048b RSA keys generated.")
 	except RuntimeError as e:
@@ -330,14 +362,31 @@ if __name__ == '__main__':
 				keyfile_bckp.write(keys)
 		except IOError as e:
 			err = True
-			logging.error('Could not backup private key: ' + str(e))
+			logging.error("Could not backup private key: " + str(e))
 
 	try:
 		csr = genCSR(KEY_PATH, gw_id)
-		print(csr)
+		cert = signCSR(SERVER_ADDRESS, gw_id, csr)
+		logging.debug("Received certificate:\n " + cert)
+		with open(CERT_PATH, 'w') as cert_file:
+			cert_file.write(cert)
+		print("Certificate successfully signed and stored.")
+		if bckp:
+			try:
+				with open(RECOVERY_PATH+CERT_PATH, 'w') as cert_bckp:
+					cert_bckp.write(cert)
+			except IOError as e:
+				err = True
+				logging.error("Could not backup certificate: " + str(e))
 	except RuntimeError as e:
 		logging.critical("CSR generation failed with: " + str(e))
 		sys.exit(1)
+	except IOError as e:
+		logging.critical("Could not save certificate: " + str(e))
+		sys.exit(1)
+
+	print("Povoluji spusteni AdaApp")
+	os.system("systemctl enable beeeon-adaapp")
 
 	if bckp:
 		try:
