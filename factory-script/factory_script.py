@@ -22,7 +22,7 @@ import subprocess
 import sys
 
 #: BeeeOn server that should manage this gateway
-SERVER_ADDRESS = "http://ant-2.fit.vutbr.cz:1338"
+SERVER_ADDRESS = "http://antdev.fit.vutbr.cz:1337"
  
 #: Path to Fitprotocold configuration file
 FITPROTOD_CONF = "/etc/beeeon/fitprotocold.ini"
@@ -112,15 +112,22 @@ def register(address, mac, sid):
 	logging.debug("Sending registration request to server " + address + ".")
 
 	headers = {"Content-type": "application/json", "Accept": "application/json"}
-	data = {'lan_mac': mac, 'secure_id': sid}
+	data = {'mac': mac, 'secID': sid}
  
-	res = requests.post(address + "/api/gateway/create", data = json.dumps(data), headers = headers)
+	res = requests.post(address + "/api/gateway", data = json.dumps(data), headers = headers)
 	logging.debug("Server response: " + str(res))
  
 	res.raise_for_status() # raise requests.exceptions.HTTPError if 4xx or 5xx status code
 
 	dres = res.json()
-	return (dres['gw_id'], dres['pan_id'])
+
+
+	if dres['data']['mac'].upper() != mac.upper():
+		raise KeyError("Returned mac address differs")
+	if dres['data']['secID'].upper() != sid.upper():
+		raise KeyError("Returned secure ID differs")
+
+	return (dres['data']['gwID'], dres['data']['panID'])
 
 def genFitprotodConf(pan_id, device_tbl_path):
 	"""
@@ -133,10 +140,10 @@ def genFitprotodConf(pan_id, device_tbl_path):
 	:rtype: String
 	"""
 
-	edids =  "edid0=0x" + str(pan_id[0]) + "\n"
-	edids += "edid1=0x" + str(pan_id[1]) + "\n"
-	edids += "edid2=0x" + str(pan_id[2]) + "\n"
-	edids += "edid3=0x" + str(pan_id[3]) + "\n"
+	edids =  "edid0=0x" + str(pan_id)[0] + "\n"
+	edids += "edid1=0x" + str(pan_id)[1] + "\n"
+	edids += "edid2=0x" + str(pan_id)[2] + "\n"
+	edids += "edid3=0x" + str(pan_id)[3] + "\n"
 
 	conf =  "[net_config]\n"
 	conf += "channel=28\n"
@@ -235,7 +242,7 @@ def genCSR(pkey_path, gw_id):
 	command = [ "openssl", "req",
 	            "-new", "-utf8",
 	            "-key", pkey_path,
-	            "-subj", CERT_SUBJECT+"/CN=AID="+gw_id+";/" ]
+	            "-subj", CERT_SUBJECT+"/CN=AID="+str(gw_id)+";/" ]
 
 	logging.debug('Generating CSR with "' + ' '.join(command) + '"')
 	
@@ -264,13 +271,14 @@ def signCSR(address, gw_id, csr):
 	headers = {"Content-type": "application/json", "Accept": "application/json"}
 	data = {'id': gw_id, 'csr': csr}
 
-	res = requests.post(address + "/api/gateway/cert/create", data = json.dumps(data), headers = headers)
+	res = requests.post(address + "/api/gateway/" + str(gw_id) + "/cert", data = json.dumps(data), headers = headers)
 	logging.debug("Server response: " + str(res))
 
 	res.raise_for_status() # raise requests.exceptions.HTTPError if 4xx or 5xx status code
 
 	try:
-		cert = res.json()['cert']
+		data = res.json()['data']
+		cert = data['cert']
 	except ValueError:
 		raise requests.exceptions.RequestException("Server replied: " + str(res.status_code) + ": " + res.text())
 
@@ -305,7 +313,7 @@ if __name__ == '__main__':
 	
 	try:
 		gw_id, pan_id = register(SERVER_ADDRESS, mac, sid)
-		print("Gateway ID:\t" + gw_id)
+		print("Gateway ID:\t" + str(gw_id))
 		print("PAN ID:\t\t" + str(pan_id))
 	except KeyError as e:
 		logging.critical("Server returned unexpected answer during registration: " + str(e))
