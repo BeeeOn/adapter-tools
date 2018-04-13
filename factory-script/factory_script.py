@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 #: BeeeOn server that should manage this gateway
-SERVER_ADDRESS = "http://antdev.fit.vutbr.cz:1337"
+SERVER_ADDRESS = "http://iotdata.fit.vutbr.cz:1337"
  
 #: Path to Fitprotocold configuration file
 FITPROTOD_CONF = "/etc/beeeon/fitprotocold.ini"
@@ -35,10 +35,10 @@ RECOVERY_FS = "/dev/mmcblk0p3"
 RECOVERY_PATH = "/mnt"
 
 #: Path where private key should be stored
-KEY_PATH = "/etc/openvpn/client.key"
+KEY_PATH = "/etc/ssl/beeeon/private/beeeon_gateway.key"
 
 #: Path where the signed certificate should be stored
-CERT_PATH = "/etc/openvpn/client.crt"
+CERT_PATH = "/etc/ssl/beeeon/certs/beeeon_gateway.crt"
 
 #: X.509 certificate subject
 CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=IoT/emailAddress=ca@iot.example.com"
@@ -394,11 +394,11 @@ if __name__ == '__main__':
 		sys.exit(1)
 
 	try:
-		subprocess.check_output(["systemctl", "enable", "beeeon-adaapp"], stderr=subprocess.STDOUT)
-		print("AdaApp enabled")
+		subprocess.check_output(["systemctl", "enable", "beeeon-gateway"], stderr=subprocess.STDOUT)
+		print("BeeeOn Gateway enabled")
 	except subprocess.CalledProcessError as e:
 		err = True
-		logging.error("Enabling AdaApp failed with: " + str(e))
+		logging.error("Enabling BeeeOn Gateway failed with: " + str(e))
 
 	if bckp:
 		try:
