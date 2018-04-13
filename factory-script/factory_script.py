@@ -9,8 +9,6 @@ between a gateway and managing server.
 todo:: Remove all references to adapter and adapter ID (aid).
 """
 
-from __future__ import print_function
-
 import argparse
 import base64
 import json
@@ -86,9 +84,9 @@ def getSID():
 		mem_sid.seek(SID_ADDR & MAP_MASK)
 
 		sid = ''
-		for i in range(0, SID_LEN / WORD_LEN):
+		for i in range(0, SID_LEN // WORD_LEN):
 			sid_word = mem_sid.read(WORD_LEN)
-			logging.debug("SID WORD[" + str(i) + "] = " + sid_word.encode('hex'))
+			logging.debug("SID WORD[" + str(i) + "] = " + sid_word.hex())
 			sid_int = struct.unpack('<L', sid_word) # Because of Little-Endians
 			sid += "{0:0{1}X}".format(sid_int[0], WORD_LEN*2) # two hex digits per byte
 
@@ -115,7 +113,7 @@ def register(address, mac, sid):
 	data = {'mac': mac, 'secID': sid}
  
 	res = requests.post(address + "/api/gateway", data = json.dumps(data), headers = headers)
-	logging.debug("Server response: " + str(res))
+	logging.debug("Server response [" + str(res.status_code) + "]: " + str(res.text))
  
 	res.raise_for_status() # raise requests.exceptions.HTTPError if 4xx or 5xx status code
 
@@ -140,10 +138,13 @@ def genFitprotodConf(pan_id, device_tbl_path):
 	:rtype: String
 	"""
 
-	edids =  "edid0=0x" + str(pan_id)[0] + "\n"
-	edids += "edid1=0x" + str(pan_id)[1] + "\n"
-	edids += "edid2=0x" + str(pan_id)[2] + "\n"
-	edids += "edid3=0x" + str(pan_id)[3] + "\n"
+	pan_id = struct.pack("!I", pan_id) # convert to bytes from integer in network byte order
+	pan_id = pan_id.hex() # convert to hex string
+
+	edids =  "edid0=0x" + pan_id[0:2] + "\n"
+	edids += "edid1=0x" + pan_id[2:4] + "\n"
+	edids += "edid2=0x" + pan_id[4:6] + "\n"
+	edids += "edid3=0x" + pan_id[6:8] + "\n"
 
 	conf =  "[net_config]\n"
 	conf += "channel=28\n"
@@ -177,7 +178,7 @@ def storeToEEPROM(gw_id):
 
 	enc_gw_id = "{0:0{1}x}".format(int(gw_id), CODED_GW_ID_MIN_LEN) # encode gw_id as hex chars
 
-	enc_gw_id_size = len(enc_gw_id)/2 # 2 hex digits per byte
+	enc_gw_id_size = len(enc_gw_id) // 2 # 2 hex digits per byte
 	enc_gw_id_size = enc_gw_id_size if (len(enc_gw_id)%2 == 0) else enc_gw_id_size+1 # round to bytes
 
 	data =  EEPROM_MAGIC_NUMBER
@@ -195,8 +196,8 @@ def storeToEEPROM(gw_id):
 	logging.debug("EEPROM data: " + data)
 
 	logging.info("Writing gateway ID to EEPROM.")
-	with open(EEPROM_PATH, 'w') as eeprom:
-		eeprom.write(data.decode('hex'))
+	with open(EEPROM_PATH, 'wb') as eeprom:
+		eeprom.write(data.encode())
 
 def genKeys():
 	"""
@@ -252,7 +253,7 @@ def genCSR(pkey_path, gw_id):
 	if proc.returncode != 0:
 		raise RuntimeError(stderr)
 
-	return stdout
+	return stdout.decode()
 
 def signCSR(address, gw_id, csr):
 	"""
@@ -277,8 +278,7 @@ def signCSR(address, gw_id, csr):
 	res.raise_for_status() # raise requests.exceptions.HTTPError if 4xx or 5xx status code
 
 	try:
-		data = res.json()['data']
-		cert = data['cert']
+		cert = res.json()['data']['cert']
 	except ValueError:
 		raise requests.exceptions.RequestException("Server replied: " + str(res.status_code) + ": " + res.text())
 
@@ -328,7 +328,8 @@ if __name__ == '__main__':
 		bckp = True
 	except subprocess.CalledProcessError as e:
 		err = True
-		logging.error("Could not mount recovery partition, initialization will NOT be backed up!\nError: " + str(e))
+		logging.error("Could not mount recovery partition, initialization will NOT be backed up!")
+		logging.error("Error (" + str(e.returncode) + "): " + e.output.decode())
 
 	fitprotod_conf = genFitprotodConf(pan_id, DEVICE_TBL_PATH)
 	try:
@@ -354,7 +355,7 @@ if __name__ == '__main__':
 
 	try:
 		keys = genKeys()
-		with open(KEY_PATH, 'w') as keyfile:
+		with open(KEY_PATH, 'wb') as keyfile:
 			keyfile.write(keys)
 		print("2048b RSA keys generated.")
 	except RuntimeError as e:
@@ -365,7 +366,7 @@ if __name__ == '__main__':
 		sys.exit(1)
 	if bckp:
 		try:
-			with open(RECOVERY_PATH+KEY_PATH, 'w') as keyfile_bckp:
+			with open(RECOVERY_PATH+KEY_PATH, 'wb') as keyfile_bckp:
 				keyfile_bckp.write(keys)
 		except IOError as e:
 			err = True
@@ -395,7 +396,7 @@ if __name__ == '__main__':
 	try:
 		subprocess.check_output(["systemctl", "enable", "beeeon-adaapp"], stderr=subprocess.STDOUT)
 		print("AdaApp enabled")
-	except CalledProcessError as e:
+	except subprocess.CalledProcessError as e:
 		err = True
 		logging.error("Enabling AdaApp failed with: " + str(e))
 
