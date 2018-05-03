@@ -5,16 +5,17 @@ Factory initialization script for BeeeOn gateways.
 This script serves for initial setting of a gateway, registering it to a
 BeeeOn server and generating cryptographic keys for secure VPN connection
 between a gateway and managing server.
-
-todo:: Remove all references to adapter and adapter ID (aid).
 """
 
 import argparse
 import base64
+import configparser
 import json
 import logging
 import mmap
+import random
 import requests
+import string
 import struct
 import subprocess
 import sys
@@ -22,17 +23,18 @@ import sys
 #: BeeeOn server that should manage this gateway
 SERVER_ADDRESS = "http://iotdata.fit.vutbr.cz:1337"
  
-#: Path to Fitprotocold configuration file
-FITPROTOD_CONF = "/etc/beeeon/fitprotocold.ini"
-
-#: Path to devices table for Fitprotocold
-DEVICE_TBL_PATH = "/var/lib/beeeon/fitprotocold.devices"
+#: Path to the configuration file
+CONFIG_FILE = "/etc/beeeon/gateway/config.d/custom.ini"
 
 #: Path to recovery device that should be mounted
 RECOVERY_FS = "/dev/mmcblk0p3"
 
 #: Path to mounted recovery device
 RECOVERY_PATH = "/mnt"
+
+#: Range setting for Fitprotocold channel
+CHANNEL_MIN = 0
+CHANNEL_MAX = 31
 
 #: Path where private key should be stored
 KEY_PATH = "/etc/ssl/beeeon/private/beeeon_gateway.key"
@@ -42,6 +44,12 @@ CERT_PATH = "/etc/ssl/beeeon/certs/beeeon_gateway.crt"
 
 #: X.509 certificate subject
 CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=IoT/emailAddress=ca@iot.example.com"
+
+#: Characters that will be used for passphrase
+PASSPHRASE_CHARS = string.ascii_letters + string.digits + ' '
+
+#: Length of the passphrase
+PASSPHRASE_LEN = 32
 
 def getMAC(iface):
 	"""
@@ -126,34 +134,6 @@ def register(address, mac, sid):
 		raise KeyError("Returned secure ID differs")
 
 	return (dres['data']['gwID'], dres['data']['panID'])
-
-def genFitprotodConf(pan_id, device_tbl_path):
-	"""
-	Generates fitprotocold configuration.
-
-	:param pan_id: PAN ID of this adapter.
-	:param device_table_path: Path to file with devices table.
-
-	:return: Fitprotocold configuration
-	:rtype: String
-	"""
-
-	pan_id = struct.pack("!I", pan_id) # convert to bytes from integer in network byte order
-	pan_id = pan_id.hex() # convert to hex string
-
-	edids =  "edid0=0x" + pan_id[0:2] + "\n"
-	edids += "edid1=0x" + pan_id[2:4] + "\n"
-	edids += "edid2=0x" + pan_id[4:6] + "\n"
-	edids += "edid3=0x" + pan_id[6:8] + "\n"
-
-	conf =  "[net_config]\n"
-	conf += "channel=28\n"
-	conf += edids
-	conf += "device_table_path=" + device_tbl_path + "\n"
-
-	logging.debug("Fitprotocold config:\n" + conf)
-
-	return conf
 
 def storeToEEPROM(gw_id):
 	"""
@@ -284,6 +264,25 @@ def signCSR(address, gw_id, csr):
 
 	return cert
 
+
+def genPassphrase(charSet, length):
+	"""
+	Generates random string of characters from :charSet of the length :length.
+
+	:param charSet: String with characters that can be used for passphrase generation.
+	:param length:  Integer defining the length of the generated passphrase.
+ 
+	:return: Random passphrase of the given length.
+	:rtype:  String
+	"""
+
+	# Create a static random context if it has not been defined yet
+	if not hasattr(genPassphrase, "rng"):
+		genPassphrase.rng = random.SystemRandom()
+
+	return ''.join([ genPassphrase.rng.choice(charSet) for _ in range(length) ])
+
+
 if __name__ == '__main__':
 	err = False
 
@@ -291,10 +290,22 @@ if __name__ == '__main__':
 	parser.add_argument("--debug", action='store_true', help="print debugging messages")
 	args = parser.parse_args()
 
+	config = configparser.ConfigParser()
+	config.optionxform = lambda option: option # Keep the case intact
+
 	log_lvl = logging.ERROR
 	if args.debug:
 		log_lvl = logging.DEBUG
 	logging.basicConfig(format="%(levelname)s:\t%(message)s", level=log_lvl)
+
+	bckp = False
+	try:
+		subprocess.check_output(["mount", RECOVERY_FS, RECOVERY_PATH], stderr=subprocess.STDOUT)
+		bckp = True
+	except subprocess.CalledProcessError as e:
+		err = True
+		logging.error("Could not mount recovery partition, initialization will NOT be backed up!")
+		logging.error("Error (" + str(e.returncode) + "): " + e.output.decode())
 
 	try:
 		mac = getMAC("eth0")
@@ -311,8 +322,10 @@ if __name__ == '__main__':
 		logging.critical("Getting secure ID failed with: " + str(e))
 		sys.exit(1)
 	
+	config['gateway'] = {}
 	try:
 		gw_id, pan_id = register(SERVER_ADDRESS, mac, sid)
+		config['gateway']['id'] = str(gw_id)
 		print("Gateway ID:\t" + str(gw_id))
 		print("PAN ID:\t\t" + str(pan_id))
 	except KeyError as e:
@@ -322,29 +335,9 @@ if __name__ == '__main__':
 		logging.critical("Registering the gateway failed with: " + str(e))
 		sys.exit(1)
 
-	bckp = False
-	try:
-		subprocess.check_output(["mount", RECOVERY_FS, RECOVERY_PATH], stderr=subprocess.STDOUT)
-		bckp = True
-	except subprocess.CalledProcessError as e:
-		err = True
-		logging.error("Could not mount recovery partition, initialization will NOT be backed up!")
-		logging.error("Error (" + str(e.returncode) + "): " + e.output.decode())
+	config['fitp'] = {'channel': str(random.randint(CHANNEL_MIN, CHANNEL_MAX))}
 
-	fitprotod_conf = genFitprotodConf(pan_id, DEVICE_TBL_PATH)
-	try:
-		with open(FITPROTOD_CONF, 'w') as fitprotod_conf_file:
-			fitprotod_conf_file.write(fitprotod_conf)
-	except IOError as e:
-		logging.critical("Could not save fitprotocold configuration. " + str(e))
-		sys.exit(1)
-	if bckp:
-		try:
-			with open(RECOVERY_PATH+FITPROTOD_CONF, 'w') as fitprotod_conf_bckp:
-				fitprotod_conf_bckp.write(fitprotod_conf)
-		except IOError as e:
-			err = True
-			logging.error("Could not backup fitprotocold configuration. " + str(e))
+	config['credentials'] = {'crypto.passphrase': genPassphrase(PASSPHRASE_CHARS, PASSPHRASE_LEN)}
 
 	try:
 		storeToEEPROM(gw_id)
@@ -353,10 +346,12 @@ if __name__ == '__main__':
 		err = True
 		logging.error("Storing gateway ID to EEPROM failed with: " + str(e))
 
+	config['ssl'] = {}
 	try:
 		keys = genKeys()
 		with open(KEY_PATH, 'wb') as keyfile:
 			keyfile.write(keys)
+		config['ssl']['key'] = KEY_PATH
 		print("2048b RSA keys generated.")
 	except RuntimeError as e:
 		logging.critical("Key generation failed with: " + str(e))
@@ -378,6 +373,7 @@ if __name__ == '__main__':
 		logging.debug("Received certificate:\n " + cert)
 		with open(CERT_PATH, 'w') as cert_file:
 			cert_file.write(cert)
+		config['ssl']['certificate'] = CERT_PATH
 		print("Certificate successfully signed and stored.")
 		if bckp:
 			try:
@@ -392,6 +388,21 @@ if __name__ == '__main__':
 	except IOError as e:
 		logging.critical("Could not save certificate: " + str(e))
 		sys.exit(1)
+
+	try:
+		with open(CONFIG_FILE, 'w+') as configfile:
+			config.write(configfile)
+		print("Configuration successfully saved.")
+	except IOError as e:
+		logging.critical("Could not save the configuration. " + str(e))
+		sys.exit(1)
+	if bckp:
+		try:
+			with open(RECOVERY_PATH+CONFIG_FILE, 'w+') as configfile:
+				config.write(configfile)
+		except IOError as e:
+			err = True
+			logging.error("Could not backup the configuration. " + str(e))
 
 	try:
 		subprocess.check_output(["systemctl", "enable", "beeeon-gateway"], stderr=subprocess.STDOUT)
