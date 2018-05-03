@@ -110,8 +110,8 @@ def register(address, mac, sid):
 	:param mac: MAC address of the main interface of this gateway.
 	:param sid: Secure ID of this gateway's CPU.
 
-	:return: Tuple with ID of this gateway and PAN ID.
-	:rtype: Tuple
+	:return: ID of this gateway
+	:rtype: Integer
 
 	:raises requests.exceptions.RequestException: if registration request failed
 	"""
@@ -133,7 +133,7 @@ def register(address, mac, sid):
 	if dres['data']['secID'].upper() != sid.upper():
 		raise KeyError("Returned secure ID differs")
 
-	return (dres['data']['gwID'], dres['data']['panID'])
+	return dres['data']['gwID']
 
 def storeToEEPROM(gw_id):
 	"""
@@ -324,10 +324,9 @@ if __name__ == '__main__':
 	
 	config['gateway'] = {}
 	try:
-		gw_id, pan_id = register(SERVER_ADDRESS, mac, sid)
+		gw_id = register(SERVER_ADDRESS, mac, sid)
 		config['gateway']['id'] = str(gw_id)
 		print("Gateway ID:\t" + str(gw_id))
-		print("PAN ID:\t\t" + str(pan_id))
 	except KeyError as e:
 		logging.critical("Server returned unexpected answer during registration: " + str(e))
 		sys.exit(1)
