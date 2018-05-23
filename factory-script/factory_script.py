@@ -331,7 +331,11 @@ if __name__ == '__main__':
 		logging.critical("Server returned unexpected answer during registration: " + str(e))
 		sys.exit(1)
 	except requests.exceptions.RequestException as e:
-		logging.critical("Registering the gateway failed with: " + str(e))
+		try:
+			for error in e.response.json()['errors']:
+				logging.critical(error)
+		except:
+			logging.critical("Registering the gateway failed with: " + str(e))
 		sys.exit(1)
 
 	config['fitp'] = {'channel': str(random.randint(CHANNEL_MIN, CHANNEL_MAX))}
