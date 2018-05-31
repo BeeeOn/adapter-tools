@@ -43,7 +43,7 @@ KEY_PATH = "/etc/ssl/beeeon/private/beeeon_gateway.key"
 CERT_PATH = "/etc/ssl/beeeon/certs/beeeon_gateway.crt"
 
 #: X.509 certificate subject
-CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=IoT/emailAddress=ca@iot.example.com"
+CERT_SUBJECT = "/C=CZ/ST=Czech Republic/L=Brno/O=BeeeOn/emailAddress=info@beeeon.org"
 
 #: Characters that will be used for passphrase
 PASSPHRASE_CHARS = string.ascii_letters + string.digits + ' '
@@ -223,7 +223,7 @@ def genCSR(pkey_path, gw_id):
 	command = [ "openssl", "req",
 	            "-new", "-utf8",
 	            "-key", pkey_path,
-	            "-subj", CERT_SUBJECT+"/CN=AID="+str(gw_id)+";/" ]
+	            "-subj", CERT_SUBJECT+"/CN="+str(gw_id)+"/" ]
 
 	logging.debug('Generating CSR with "' + ' '.join(command) + '"')
 	
