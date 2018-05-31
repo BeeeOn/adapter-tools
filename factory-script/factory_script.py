@@ -21,7 +21,7 @@ import subprocess
 import sys
 
 #: BeeeOn server that should manage this gateway
-SERVER_ADDRESS = "http://iotdata.fit.vutbr.cz:1337"
+SERVER_ADDRESS = "http://ant-dev.fit.vutbr.cz:1337"
  
 #: Path to the configuration file
 CONFIG_FILE = "/etc/beeeon/gateway/config.d/custom.ini"
