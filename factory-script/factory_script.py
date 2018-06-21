@@ -13,6 +13,7 @@ import configparser
 import json
 import logging
 import mmap
+import os
 import random
 import requests
 import string
@@ -352,8 +353,15 @@ if __name__ == '__main__':
 	config['ssl'] = {}
 	try:
 		keys = genKeys()
+
+		try:
+			os.mkdirs(os.path.dirname(KEY_PATH))
+		except OSError as e:
+			pass
+
 		with open(KEY_PATH, 'wb') as keyfile:
 			keyfile.write(keys)
+
 		config['ssl']['key'] = KEY_PATH
 		print("2048b RSA keys generated.")
 	except RuntimeError as e:
@@ -374,6 +382,12 @@ if __name__ == '__main__':
 		csr = genCSR(KEY_PATH, gw_id)
 		cert = signCSR(SERVER_ADDRESS, gw_id, csr)
 		logging.debug("Received certificate:\n " + cert)
+
+		try:
+			os.makedirs(os.path.dirname(CERT_PATH))
+		except OSError as e:
+			pass
+
 		with open(CERT_PATH, 'w') as cert_file:
 			cert_file.write(cert)
 		config['ssl']['certificate'] = CERT_PATH
