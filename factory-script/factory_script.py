@@ -355,7 +355,7 @@ if __name__ == '__main__':
 		keys = genKeys()
 
 		try:
-			os.mkdirs(os.path.dirname(KEY_PATH))
+			os.makedirs(os.path.dirname(KEY_PATH))
 		except OSError as e:
 			pass
 
