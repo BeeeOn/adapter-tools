@@ -371,8 +371,14 @@ if __name__ == '__main__':
 		logging.critical("Could not save private key: " + str(e))
 		sys.exit(1)
 	if bckp:
+		bckp_keyfile_path = RECOVERY_PATH+KEY_PATH
 		try:
-			with open(RECOVERY_PATH+KEY_PATH, 'wb') as keyfile_bckp:
+			os.makedirs(os.path.dirname(bckp_keyfile_path))
+		except OSError:
+			pass
+
+		try:
+			with open(bckp_keyfile_path, 'wb') as keyfile_bckp:
 				keyfile_bckp.write(keys)
 		except IOError as e:
 			err = True
@@ -393,8 +399,14 @@ if __name__ == '__main__':
 		config['ssl']['certificate'] = CERT_PATH
 		print("Certificate successfully signed and stored.")
 		if bckp:
+			bckp_cert_path = RECOVERY_PATH+CERT_PATH
 			try:
-				with open(RECOVERY_PATH+CERT_PATH, 'w') as cert_bckp:
+				os.makedirs(os.path.dirname(bckp_cert_path))
+			except OSError:
+				pass
+			
+			try:
+				with open(bckp_cert_path, 'w') as cert_bckp:
 					cert_bckp.write(cert)
 			except IOError as e:
 				err = True
@@ -414,8 +426,14 @@ if __name__ == '__main__':
 		logging.critical("Could not save the configuration. " + str(e))
 		sys.exit(1)
 	if bckp:
+		bckp_conf_path = RECOVERY_PATH+CONFIG_FILE
 		try:
-			with open(RECOVERY_PATH+CONFIG_FILE, 'w+') as configfile:
+			os.makedirs(os.path.dirname(bckp_conf_path))
+		except OSError:
+			pass
+			
+		try:
+			with open(bckp_conf_path, 'w+') as configfile:
 				config.write(configfile)
 		except IOError as e:
 			err = True
